@@ -1,0 +1,427 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import * as THREE from "three";
+
+const ForceGraph3D = dynamic(
+  () =>
+    import("react-force-graph-3d").then(
+      (mod) => mod.default
+    ),
+  {
+    ssr: false,
+  }
+);
+
+interface GraphNode {
+  id: string;
+  name: string;
+  group: string;
+  category?: string;
+  content?: string;
+  size?: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+}
+
+export default function MapPage() {
+
+  const router = useRouter();
+
+  const graphRef = useRef<any>(null);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [
+    selectedCategory,
+    setSelectedCategory
+  ] = useState("Tutte");
+
+  const [categories, setCategories] =
+    useState<string[]>([]);
+
+  const [
+    selectedNode,
+    setSelectedNode
+  ] = useState<GraphNode | null>(
+    null
+  );
+
+  const [
+    graphData,
+    setGraphData
+  ] = useState<{
+    nodes: GraphNode[];
+    links: GraphLink[];
+  }>({
+    nodes: [],
+    links: [],
+  });
+
+  useEffect(() => {
+  loadGraph();
+}, [search, selectedCategory]);
+
+async function loadGraph() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data } = await supabase
+    .from("memories")
+    .select("*")
+    .eq("user_id", user.id);
+
+  if (!data) return;
+
+  const nodes: GraphNode[] = [];
+  const links: GraphLink[] = [];
+
+  const memoryPool: {
+    id: string;
+    text: string;
+  }[] = [];
+
+  const groupedCategories: Record<string, any[]> = {};
+
+  // nodo centrale
+  nodes.push({
+    id: "iMemory",
+    name: "iMemory",
+    group: "core",
+    content: `Totale memorie: ${data.length}`,
+  });
+
+  // raggruppa le memorie
+  data.forEach((memory: any) => {
+    const cat = memory.category || "Generale";
+
+    if (!groupedCategories[cat]) {
+      groupedCategories[cat] = [];
+    }
+
+    groupedCategories[cat].push(memory);
+  });
+
+  setCategories(Object.keys(groupedCategories));
+
+  // crea categorie e memorie
+  Object.keys(groupedCategories).forEach((category) => {
+    const categoryId = "cat-" + category;
+
+    nodes.push({
+      id: categoryId,
+      name: category,
+      group: "category",
+      content: `${groupedCategories[category].length} memorie`,
+    });
+
+    links.push({
+      source: "iMemory",
+      target: categoryId,
+    });
+
+    groupedCategories[category].forEach((memory: any) => {
+      const memoryId = "memory-" + memory.id;
+
+      const text =
+        (memory.title || "") +
+        " " +
+        (memory.content || "");
+
+      nodes.push({
+        id: memoryId,
+        name:
+          memory.title ||
+          memory.content?.slice(0, 40) ||
+          "Memoria",
+
+        group: "memory",
+
+        content:
+          memory.content ||
+          "Nessun contenuto",
+      });
+
+      links.push({
+        source: categoryId,
+        target: memoryId,
+      });
+
+      memoryPool.push({
+        id: memoryId,
+        text: text.toLowerCase(),
+      });
+    });
+  });
+
+  // collegamenti neurali
+  // collegamenti neurali
+for (let i = 0; i < memoryPool.length; i++) {
+  for (let j = i + 1; j < memoryPool.length; j++) {
+
+    const wordsA = memoryPool[i].text
+      .split(/\s+/)
+      .filter((w) => w.length > 4);
+
+    const wordsB = memoryPool[j].text
+      .split(/\s+/)
+      .filter((w) => w.length > 4);
+
+    const common = wordsA.filter(
+      (word) => wordsB.includes(word)
+    );
+
+    if (common.length >= 2) {
+      links.push({
+        source: memoryPool[i].id,
+        target: memoryPool[j].id,
+      });
+    }
+  }
+}
+
+setGraphData({
+  nodes,
+  links,
+});
+}
+    
+
+    // Nodo central
+
+  return (
+    <main className="h-screen w-full bg-black text-white flex overflow-hidden">
+
+      {/* SFONDO */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-black to-blue-900/40 animate-pulse-slow blur-2xl pointer-events-none"></div>
+
+      {/* SIDEBAR */}
+      <aside className="w-80 h-screen bg-zinc-950/80 backdrop-blur-xl border-r border-purple-500/30 shadow-[0_0_40px_rgba(168,85,247,0.4)] p-10 flex flex-col gap-10 z-50">
+        <h2 className="text-4xl font-bold text-purple-300 drop-shadow-[0_0_20px_rgba(168,85,247,0.7)]">
+          iMemory
+        </h2>
+
+        <nav className="flex flex-col gap-5 text-gray-400 text-lg">
+          <Link href="/" className="hover:text-white transition">Home</Link>
+          <Link href="/chat" className="hover:text-white transition">Chat</Link>
+          <Link href="/memories" className="hover:text-white transition">Memorie</Link>
+          <Link href="/memory" className="hover:text-white transition">Nuova Memoria</Link>
+          <Link href="/map" className="hover:text-white transition">Mappa Mentale</Link>
+          <Link href="/insights" className="hover:text-white transition">Insights</Link>
+        </nav>
+      </aside>
+
+      {/* CONTENUTO */}
+      <div className="flex-1 relative">
+
+        {/* TITOLO */}
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 text-center">
+          <h1 className="text-6xl font-extrabold text-purple-300 drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]">
+            🌌 Neural Memory Universe
+          </h1>
+          <p className="text-gray-400 mt-3 text-lg">Esplora la tua mente in 3D</p>
+        </div>
+
+        {/* CARD NODO */}
+        {selectedNode && (
+          <div className="absolute right-8 top-8 w-[420px] z-50">
+            <div className="rounded-3xl border border-purple-500/30 bg-zinc-950/90 backdrop-blur-xl p-8 shadow-[0_0_50px_rgba(168,85,247,0.4)] animate-fadeIn">
+              <h2 className="text-3xl font-bold text-purple-300">{selectedNode.name}</h2>
+              <p className="text-sm text-gray-500 mt-2">{selectedNode.group}</p>
+              <div className="mt-6 text-gray-300 leading-relaxed">
+                {selectedNode.content || "Nodo della memoria"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* GRAFICO 3D */}
+        <ForceGraph3D
+          ref={graphRef}
+          graphData={graphData}
+          backgroundColor="#020617"
+          enableNodeDrag={true}
+          linkDirectionalParticles={4}
+          linkDirectionalParticleWidth={3}
+          linkDirectionalParticleSpeed={() => 0.01}
+          cooldownTicks={200}
+          d3VelocityDecay={0.15}
+          nodeLabel={(node: any) => node.name}
+          linkColor={() => "rgba(200,150,255,0.7)"}
+          linkWidth={() => 2.2}
+
+          // ⭐ NODI 3D COMPLETI (icone + glow + anelli minimal)
+          nodeThreeObject={(node: any) => {
+            const group = new THREE.Group();
+            let icon;
+
+            // ⭐ COLORI ACCENTUATI PER OGNI TIPO
+            const colorCore = "#ff33ff";
+            const colorCat = "#33ddff";
+            const colorMem = "#33ffcc";
+
+            const color =
+              node.group === "core"
+                ? colorCore
+                : node.group === "category"
+                ? colorCat
+                : colorMem;
+
+            // ⭐ 1) CERVELLO 3D (core)
+            if (node.group === "core") {
+              icon = new THREE.Mesh(
+                new THREE.TorusKnotGeometry(7, 1.8, 150, 20),
+                new THREE.MeshStandardMaterial({
+                  color,
+                  emissive: color,
+                  emissiveIntensity: 1,
+                  metalness: 1,
+                })
+              );
+            }
+
+            // ⭐ 2) CARTELLA 3D (categorie)
+            if (node.group === "category") {
+              const folder = new THREE.Group();
+
+              const body = new THREE.BoxGeometry(14, 9, 3);
+              const tab = new THREE.BoxGeometry(6, 3, 3);
+
+              const mat = new THREE.MeshStandardMaterial({
+                color,
+                emissive: color,
+                emissiveIntensity: 0.9,
+                metalness: 1,
+              });
+
+              const bodyMesh = new THREE.Mesh(body, mat);
+              const tabMesh = new THREE.Mesh(tab, mat);
+
+              tabMesh.position.set(-5, 6, 0);
+
+              folder.add(bodyMesh);
+              folder.add(tabMesh);
+
+              icon = folder;
+            }
+
+            // ⭐ 3) NUVOLETTA 3D (memorie)
+            if (node.group === "memory") {
+              const cloud = new THREE.Group();
+
+              const mat = new THREE.MeshStandardMaterial({
+                color,
+                emissive: color,
+                emissiveIntensity: 0.8,
+                metalness: 1,
+              });
+
+              const s1 = new THREE.Mesh(new THREE.SphereGeometry(6, 32, 32), mat);
+              const s2 = new THREE.Mesh(new THREE.SphereGeometry(4, 32, 32), mat);
+              const s3 = new THREE.Mesh(new THREE.SphereGeometry(3.5, 32, 32), mat);
+
+              s2.position.set(5.5, 1, 0);
+              s3.position.set(-5, -1, 0);
+
+              cloud.add(s1);
+              cloud.add(s2);
+              cloud.add(s3);
+
+              icon = cloud;
+            }
+
+            // ⭐ AGGIUNGI ICONA
+            if (icon) {
+              icon.position.set(0, 0, 0);
+              group.add(icon);
+
+              // ⭐ ROTAZIONE LENTA
+              const speed = 0.004;
+              const animate = () => {
+                icon.rotation.y += speed;
+                icon.rotation.x += speed * 0.2;
+                requestAnimationFrame(animate);
+              };
+              animate();
+
+              // ⭐ GLOW DINAMICO MINIMAL
+              const glowGeo = new THREE.RingGeometry(10, 11, 64);
+              const glowMat = new THREE.MeshBasicMaterial({
+                color,
+                transparent: true,
+                opacity: 0.25,
+                side: THREE.DoubleSide,
+              });
+
+              const glow = new THREE.Mesh(glowGeo, glowMat);
+              glow.rotation.x = Math.PI / 2;
+              group.add(glow);
+
+              let pulse = 0;
+              const pulseAnim = () => {
+                pulse += 0.04;
+                glow.scale.set(1 + Math.sin(pulse) * 0.08, 1 + Math.sin(pulse) * 0.08, 1);
+                requestAnimationFrame(pulseAnim);
+              };
+              pulseAnim();
+
+              // ⭐ ANELLI ORBITANTI MINIMAL
+              const ringMat = new THREE.MeshBasicMaterial({
+                color,
+                transparent: true,
+                opacity: 0.35,
+                side: THREE.DoubleSide,
+              });
+
+              const ring1 = new THREE.Mesh(new THREE.RingGeometry(13, 13.5, 64), ringMat);
+              ring1.rotation.x = Math.PI / 3;
+
+              const ring2 = new THREE.Mesh(new THREE.RingGeometry(13, 13.5, 64), ringMat);
+              ring2.rotation.x = -Math.PI / 3;
+
+              group.add(ring1);
+              group.add(ring2);
+
+              const ringAnim = () => {
+                ring1.rotation.z += 0.002;
+                ring2.rotation.z -= 0.002;
+                requestAnimationFrame(ringAnim);
+              };
+              ringAnim();
+            }
+
+            return group;
+          }}
+
+          onNodeClick={(node: any) => {
+            setSelectedNode(node);
+
+            const distance = 200;
+            const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+
+            graphRef.current.cameraPosition(
+              {
+                x: node.x * distRatio,
+                y: node.y * distRatio,
+                z: node.z * distRatio,
+              },
+              node,
+              1000
+            );
+          }}
+        />
+      </div>
+    </main>
+  );
+}
