@@ -4,6 +4,7 @@ import AuthGuard from "./authGuard";
 import MemoryResurfacingPopup from "@/components/MemoryResurfacingPopup";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import MobileAppChrome from "@/components/MobileAppChrome";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "iMemory",
@@ -44,6 +45,7 @@ export default function RootLayout({
           <MobileBottomNav />
           <MobileAppChrome />
         </AuthGuard>
+        <SpeedInsights />
       </body>
     </html>
   );
