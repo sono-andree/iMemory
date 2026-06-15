@@ -1,9 +1,9 @@
 export const FREE_LIMITS = {
-  memories: 1,
-  goals: 1,
-  focusPerMonth: 1,
-  chatMessagesPerMonth: 1,
-  goalStrategiesPerMonth: 1,
+  memories: 50,
+  goals: 3,
+  focusPerMonth: 5,
+  chatMessagesPerMonth: 30,
+  goalStrategiesPerMonth: 10,
 };
 
 export function isProPlan(
